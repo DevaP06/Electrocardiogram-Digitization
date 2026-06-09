@@ -15,7 +15,7 @@ Digitizes 12-lead ECG paper records (scanned or photographed) into raw voltageâ€
 ## Prerequisites
 
 - Python 3.12+
-- Git + [Git LFS](https://git-lfs.com/) (to download model weights)
+- Git
 
 ---
 
@@ -24,7 +24,7 @@ Digitizes 12-lead ECG paper records (scanned or photographed) into raw voltageâ€
 ### Windows (PowerShell)
 
 ```powershell
-git clone git@github.com:Ahus-AIM/Electrocardiogram-Digitization.git
+git clone https://github.com/DevaP06/Electrocardiogram-Digitization.git
 cd Electrocardiogram-Digitization
 
 python -m venv venv
@@ -33,22 +33,20 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 
 pip install torch==2.12.0 torchvision==0.27.0 --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
-
-git lfs pull
 ```
+
+> **Weights:** Model weights are not included in this repository. Contact [ecgenius.life@gmail.com](mailto:ecgenius.life@gmail.com) to obtain them and place them in the `weights/` folder.
 
 ### Linux / macOS
 
 ```bash
-git clone git@github.com:Ahus-AIM/Electrocardiogram-Digitization.git
+git clone https://github.com/DevaP06/Electrocardiogram-Digitization.git
 cd Electrocardiogram-Digitization
 
 python3.12 -m venv venv && source venv/bin/activate
 
 pip install torch==2.12.0 torchvision==0.27.0 --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
-
-git lfs pull
 ```
 
 > **GPU (CUDA):** Replace the `--index-url` with `https://download.pytorch.org/whl/cu121` (or your CUDA version).
