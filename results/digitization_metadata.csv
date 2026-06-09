@@ -1,0 +1,17 @@
+file_path,matching_cost,is_flipped,lead_layout
+4,0.5231925496829927,False,precordial_6x1
+2,0.31188513030637827,False,standard_3x4_with_r1
+3,0.3028142904030756,False,cabrera_6x1_limb
+norm,0.5402594839508982,False,standard_3x4
+1,0.3187272852287007,False,standard_3x4_with_r1
+4,4.071051135973972,False,precordial_3x2
+2,0.31188513030637827,False,standard_3x4_with_r1
+3,0.3028142904030756,False,cabrera_6x1_limb
+norm,0.5402594839508982,False,standard_3x4
+1,0.3187272852287007,False,standard_3x4_with_r1
+4,0.3679257315876693,False,standard_3x4_with_r3
+2,0.31188513030637827,False,standard_3x4_with_r1
+3,0.21413805055145668,False,standard_6x1_limb
+5,0.35629837950097487,False,precordial_6x1
+1,0.3187272852287007,False,standard_3x4_with_r1
+norm,0.5402594839508982,False,standard_3x4

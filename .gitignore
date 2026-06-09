@@ -1,0 +1,9 @@
+/data
+model_weights
+weights/
+__pycache__
+venv
+.vscode
+src/scripts/visualized_transforms
+src/report/figures
+sandbox/
