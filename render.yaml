@@ -1,0 +1,15 @@
+# Render Blueprint — ECG digitizer (UNet signal extraction).
+# Private service: only ml-api calls it, no public ingress needed.
+# Apply: Render Dashboard → New → Blueprint → connect this repo.
+services:
+  - type: pserv                 # private service (internal-only)
+    name: ecg-digitizer         # internal hostname → http://ecg-digitizer:8000
+    runtime: docker
+    region: singapore           # MUST match the other two services for private networking
+    plan: standard              # torch (UNet) needs ~2 GB RAM; Starter's 512 MB is too small
+    rootDir: .
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: PORT               # container CMD listens on 8000; keep them aligned
+        value: "8000"
