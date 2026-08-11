@@ -7,3 +7,10 @@ venv
 src/scripts/visualized_transforms
 src/report/figures
 sandbox/
+
+# Hugging Face dataset cache (downloaded via src/scripts/download_hf_dataset.py) and run logs.
+hf_cache/
+logs/
+
+# setuptools build metadata from `pip install -e .`
+*.egg-info/
