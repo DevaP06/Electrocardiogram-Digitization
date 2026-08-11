@@ -69,6 +69,19 @@ def canonical_from_got_values(got_values: dict[str, Any]) -> torch.Tensor | None
     return canonical
 
 
+def save_lead_confidence_csv(got_values: dict[str, Any], output_basepath: str) -> None:
+    """Writes per-lead coverage/smoothness/confidence scores, so a low-confidence lead is a reportable
+    metric a caller can check and flag, instead of a digitized-but-wrong signal that looks fine at a
+    glance."""
+    lead_confidence: dict[str, dict[str, float]] | None = got_values.get("signal", {}).get("lead_confidence")
+    if not lead_confidence:
+        return
+    with open(output_basepath + "_lead_confidence.csv", "w") as f:
+        f.write("lead,coverage,smoothness,confidence\n")
+        for lead_name, scores in lead_confidence.items():
+            f.write(f"{lead_name},{scores['coverage']:.4f},{scores['smoothness']:.4f},{scores['confidence']:.4f}\n")
+
+
 def save_timeseries_csv(canonical: torch.Tensor | None, output_basepath: str) -> None:
     if canonical is None:
         return
@@ -136,22 +149,22 @@ def save_outputs(got_values: dict[str, Any], output_basepath: str, save_mode: st
     canonical = canonical_from_got_values(got_values)
     if save_mode in ["all", "timeseries_only"]:
         save_timeseries_csv(canonical, output_basepath)
+        save_lead_confidence_csv(got_values, output_basepath)
     if save_mode in ["all", "png_only"]:
         save_png_plot(got_values, canonical, output_basepath)
     save_matching_cost(got_values, output_basepath)
 
 
-def process_one_file(file_path: str, config: CN, inference_wrapper: Any, save_mode: str) -> None:
-    image = decode_and_prepare_image(file_path)
-    layout_should_include_substring: str | None = None
+def get_layout_should_include_substring(file_path: str, config: CN) -> str | None:
     if config.DATA.get("layout_should_include_substring") is not None:
         if "limb" in str(file_path):
-            layout_should_include_substring = "limb"
+            return "limb"
         elif "precordial" in str(file_path):
-            layout_should_include_substring = "precordial"
+            return "precordial"
+    return None
 
-    got_values = inference_wrapper(image, layout_should_include_substring=layout_should_include_substring)
 
+def save_result_for_file(file_path: str, config: CN, got_values: dict[str, Any], save_mode: str) -> None:
     if config.DATA.get("output_path") is not None:
         rel_path = os.path.relpath(file_path, config.DATA.images_path)
         output_file_path = os.path.join(config.DATA.output_path, rel_path)
@@ -160,10 +173,41 @@ def process_one_file(file_path: str, config: CN, inference_wrapper: Any, save_mo
         save_outputs(got_values, output_basepath, save_mode)
 
 
+def process_one_file(file_path: str, config: CN, inference_wrapper: Any, save_mode: str) -> None:
+    image = decode_and_prepare_image(file_path)
+    layout_should_include_substring = get_layout_should_include_substring(file_path, config)
+    got_values = inference_wrapper(image, layout_should_include_substring=layout_should_include_substring)
+    save_result_for_file(file_path, config, got_values, save_mode)
+
+
+def process_file_batch(file_paths: list[str], config: CN, inference_wrapper: Any, save_mode: str) -> None:
+    """Digitizes a batch of files in one call to forward_batch() instead of one file at a time -- see
+    InferenceWrapper.forward_batch for what batching does and does not speed up. Falls back to
+    processing files one by one (via the existing per-file error handling in main()) if the batch as a
+    whole fails, so one bad file can't take an entire batch of otherwise-fine files down with it."""
+    images = [decode_and_prepare_image(file_path) for file_path in file_paths]
+    substrings = [get_layout_should_include_substring(file_path, config) for file_path in file_paths]
+
+    try:
+        results = inference_wrapper.forward_batch(images, substrings)
+    except Exception as e:
+        print(f"Batch of {len(file_paths)} files failed ({e}); retrying one file at a time.")
+        for file_path in file_paths:
+            try:
+                process_one_file(file_path, config, inference_wrapper, save_mode)
+            except Exception as file_error:
+                print(f"Error processing {file_path}: {file_error}")
+        return
+
+    for file_path, got_values in zip(file_paths, results):
+        save_result_for_file(file_path, config, got_values, save_mode)
+
+
 def main(config: CN) -> None:
     inference_wrapper_class = import_class_from_path(config.MODEL.class_path)
     inference_wrapper = inference_wrapper_class(**config.MODEL.KWARGS)
     save_mode: str = getattr(config.DATA, "save_mode", "all")
+    batch_size: int = config.DATA.get("batch_size", 1)
     file_paths: list[str] = get_candidate_file_paths(config)
 
     include_list = config.DATA.get("path_should_include", [])
@@ -171,19 +215,28 @@ def main(config: CN) -> None:
     if config.DATA.get("output_path") is not None:
         clear_and_prepare_output_dir(config)
 
-    for file_path in tqdm(file_paths):
+    included_paths = []
+    for file_path in file_paths:
         should_be_included = not bool(include_list)
         for include in include_list:
             if include in file_path:
                 should_be_included = True
-        if not should_be_included:
-            continue
-        print(f"Processing file: {file_path}")
-        try:
-            process_one_file(file_path, config, inference_wrapper, save_mode)
-        except Exception as e:
-            print(f"Error processing {file_path}: {e}")
-            continue
+        if should_be_included:
+            included_paths.append(file_path)
+
+    if batch_size <= 1:
+        for file_path in tqdm(included_paths):
+            print(f"Processing file: {file_path}")
+            try:
+                process_one_file(file_path, config, inference_wrapper, save_mode)
+            except Exception as e:
+                print(f"Error processing {file_path}: {e}")
+                continue
+    else:
+        batches = [included_paths[i : i + batch_size] for i in range(0, len(included_paths), batch_size)]
+        for batch in tqdm(batches):
+            print(f"Processing batch: {batch}")
+            process_file_batch(batch, config, inference_wrapper, save_mode)
 
 
 if __name__ == "__main__":
