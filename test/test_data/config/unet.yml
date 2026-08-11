@@ -29,7 +29,9 @@ TRAIN:
       eta_min_divisor: 10.0
   CRITERION:
     class_path: 'src.loss.loss.DiceFocalLoss'
-    KWARGS: {}
+    KWARGS:
+      cl_dice_weight: 0.5
+      cl_dice_iterations: 2
   KWARGS:
     epochs: 1
     metrics: []

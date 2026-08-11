@@ -32,6 +32,13 @@ TRAIN:
     class_path: 'src.loss.loss.DiceFocalLoss'
     KWARGS:
       alpha: 1.0
+      # Topology-aware clDice term (Shit et al., CVPR 2021), added on top of Dice + Focal. Penalizes
+      # broken/disconnected trace predictions even when pixel-overlap loss barely notices. Starting
+      # point: weight roughly on par with the Dice/Focal terms; iterations should cover the pixel
+      # radius of the thickest signal/grid strokes at training crop resolution (1024x1024) -- tune
+      # both against src/evaluate.py's SNR/Pearson metrics rather than assuming these are optimal.
+      cl_dice_weight: 0.5
+      cl_dice_iterations: 5
   KWARGS:
     epochs: 100
     metrics: []
@@ -78,7 +85,7 @@ DATASET:
   KWARGS: {}
   TRAIN:
     KWARGS:
-      data_path: '/home/datasets/paper-ecg-digitization-4channel/dark_grid_transformed/train'
+      data_path: '../../data/ecg_dataset/train'
     TRANSFORM:
       class_path: 'src.transform.vision.ComposedTransform'
       KWARGS:
@@ -107,7 +114,7 @@ DATASET:
 
   VAL:
     KWARGS:
-      data_path: '/home/datasets/paper-ecg-digitization-4channel/dark_grid_transformed/val'
+      data_path: '../../data/ecg_dataset/val'
     TRANSFORM:
       class_path: 'src.transform.vision.ComposedTransform'
       KWARGS:
@@ -119,4 +126,4 @@ DATASET:
             KWARGS: {}
   TEST:
     KWARGS:
-      data_path: '/home/datasets/paper-ecg-digitization-4channel/dark_grid_transformed/val'
+      data_path: '../../data/ecg_dataset/val'
