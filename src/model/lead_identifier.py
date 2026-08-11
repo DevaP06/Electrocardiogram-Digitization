@@ -7,6 +7,8 @@ import torch
 from numpy.typing import NDArray
 from scipy.optimize import linear_sum_assignment
 
+from src.model.lead_confidence import lead_confidence_by_name
+
 
 class LeadIdentifier:
     LEAD_CHANNEL_ORDER: list[str] = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
@@ -486,6 +488,7 @@ class LeadIdentifier:
             match["layout"] = list(layouts.keys())[0]
 
         canonical_lines = self._canonicalize_lines(lines.clone(), match)
+        lead_confidence = lead_confidence_by_name(canonical_lines, lead_names=self.LEAD_CHANNEL_ORDER)
 
         return {
             "rows_in_layout": rows_in_layout,
@@ -493,4 +496,5 @@ class LeadIdentifier:
             **match,
             "canonical_lines": canonical_lines,
             "lines": lines,
+            "lead_confidence": lead_confidence,
         }
