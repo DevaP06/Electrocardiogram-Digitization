@@ -135,14 +135,21 @@ def save_matching_cost(got_values: dict[str, Any], output_basepath: str) -> None
     metadata_file = os.path.join(os.path.dirname(output_basepath), "digitization_metadata.csv")
     if not os.path.exists(metadata_file):
         with open(metadata_file, "w") as f:
-            f.write("file_path,matching_cost,is_flipped,lead_layout\n")
+            f.write("file_path,matching_cost,is_flipped,lead_layout,mv_per_mm,calibration_detected,calibration_num_leads\n")
     # then append the values
     with open(metadata_file, "a") as f:
         file_name = os.path.basename(output_basepath)
         matching_cost = got_values.get("signal", {}).get("layout_matching_cost", float("nan"))
         is_flipped = got_values.get("is_flipped", False)
         lead_layout = got_values.get("layout_name", "")
-        f.write(f"{file_name},{matching_cost},{is_flipped},{lead_layout}\n")
+        calibration = got_values.get("calibration", {})
+        mv_per_mm = calibration.get("mv_per_mm", float("nan"))
+        calibration_detected = calibration.get("detected", False)
+        calibration_num_leads = calibration.get("num_leads_detected", 0)
+        f.write(
+            f"{file_name},{matching_cost},{is_flipped},{lead_layout},"
+            f"{mv_per_mm},{calibration_detected},{calibration_num_leads}\n"
+        )
 
 
 def save_outputs(got_values: dict[str, Any], output_basepath: str, save_mode: str = "all") -> None:

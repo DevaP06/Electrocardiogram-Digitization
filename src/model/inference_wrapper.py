@@ -10,6 +10,7 @@ from torch import Tensor
 from torch.nn import Module
 from yacs.config import CfgNode as CN
 
+from src.model.calibration_pulse_detector import DEFAULT_MV_PER_MM, CalibrationPulseDetector
 from src.utils import import_class_from_path
 
 
@@ -40,6 +41,7 @@ class InferenceWrapper(Module):
         enable_timing: bool = False,
         minimum_image_size: int = 512,
         apply_dewarping: bool = True,
+        apply_calibration_detection: bool = True,
     ) -> None:
         """Inference wrapper for ECG pipeline.
 
@@ -55,6 +57,10 @@ class InferenceWrapper(Module):
             enable_timing: Whether to print timings.
             minimum_image_size: Minimum allowed image size.
             apply_dewarping: Whether to apply dewarping (perspective correction is still performed regardless).
+            apply_calibration_detection: Whether to look for a calibration pulse in the extracted lines and
+                derive mv_per_mm from its measured height, instead of always using DEFAULT_MV_PER_MM. When
+                no confident pulse is found (or this is disabled), falls back to DEFAULT_MV_PER_MM exactly
+                as before this option existed.
         """
         super().__init__()
         self.config = config
@@ -68,6 +74,7 @@ class InferenceWrapper(Module):
         self._timing_enabled = enable_timing
         self.minimum_image_size = minimum_image_size
         self.apply_dewarping = apply_dewarping
+        self.apply_calibration_detection = apply_calibration_detection
 
         self.signal_extractor = self._load_signal_extractor()
         self.perspective_detector: Any = self._load_perspective_detector()
@@ -76,6 +83,7 @@ class InferenceWrapper(Module):
         self.pixel_size_finder: Any = self._load_pixel_size_finder()
         self.dewarper: Any = self._load_dewarper()
         self.identifier = self._load_layout_identifier()
+        self.calibration_detector = CalibrationPulseDetector()
         self.times: dict[str, float] = {}
 
     @torch.no_grad()
@@ -217,10 +225,21 @@ class InferenceWrapper(Module):
         with timed_section("Signal extraction", times):
             signals = self.signal_extractor(aligned_signal_prob.squeeze())
 
+        mv_per_mm = DEFAULT_MV_PER_MM
+        calibration_detected = False
+        calibration_num_leads_detected = 0
+        if self.apply_calibration_detection:
+            with timed_section("Calibration pulse detection", times):
+                calibration_result = self.calibration_detector(signals, avg_pixel_per_mm)
+                mv_per_mm = calibration_result.mv_per_mm
+                calibration_detected = calibration_result.detected
+                calibration_num_leads_detected = calibration_result.num_leads_detected
+
         layout = self.identifier(
             signals,
             aligned_text_prob,
             avg_pixel_per_mm,
+            mv_per_mm=mv_per_mm,
             layout_should_include_substring=layout_should_include_substring,
         )
         try:
@@ -253,6 +272,11 @@ class InferenceWrapper(Module):
                 "x": mm_per_pixel_x,
                 "y": mm_per_pixel_y,
                 "average_pixel_per_mm": avg_pixel_per_mm,
+            },
+            "calibration": {
+                "mv_per_mm": mv_per_mm,
+                "detected": calibration_detected,
+                "num_leads_detected": calibration_num_leads_detected,
             },
             "source_points": source_points.cpu(),
         }
