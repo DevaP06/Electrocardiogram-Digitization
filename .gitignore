@@ -14,3 +14,10 @@ logs/
 
 # setuptools build metadata from `pip install -e .`
 *.egg-info/
+
+# Benchmark run output: hundreds of per-record folders of PNGs/CSVs, regenerable from
+# src/scripts/export_hf_ground_truth_benchmark.py + src.digitize + src.evaluate. Scoped to the
+# ahus_benchmark_* names rather than all of results/ so the handful of sample outputs already
+# committed there (results/1.png .. 5.png, norm.png and their timeseries) stay tracked.
+results/ahus_benchmark_*/
+results/ahus_metrics_*.csv

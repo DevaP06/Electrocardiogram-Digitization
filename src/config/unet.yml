@@ -7,7 +7,10 @@ MODEL:
     depth: 2
 
 TRAIN:
-  COMPILE: True
+  # torch.compile requires Triton, which is not included in PyTorch's Windows wheels (Linux-only), so
+  # compiling fails at the first forward pass with TritonMissing. Set back to True on Linux, or on
+  # Windows after installing the third-party `triton-windows` package.
+  COMPILE: False
   CUDNN_BENCHMARK: True
   LR_SCHEDULER:
     class_path: 'src.utils.CosineToConstantLR'
@@ -40,7 +43,11 @@ TRAIN:
       cl_dice_weight: 0.5
       cl_dice_iterations: 5
   KWARGS:
-    epochs: 100
+    # Measured ~21.4 min/epoch at batch 4 on a 16 GB RTX 2000 Ada, so 13 epochs fits a ~5 h budget.
+    # This also happens to suit the LR schedule: CosineToConstantLR's T_max is 10000 *steps*, which at
+    # 1028 steps/epoch bottoms out around epoch 10, leaving ~3 epochs at eta_min to settle. Raise this
+    # (and T_max with it) for a longer run -- at 100 epochs the LR would sit at the floor for 90 of them.
+    epochs: 13
     metrics: []
     device: 'cuda'
     metrics:
@@ -72,7 +79,12 @@ HYPERPARAMETER_SEARCH:
 DATALOADER:
   class_path: 'torch.utils.data.DataLoader'
   KWARGS:
-    batch_size: 12
+    # 4 is the largest batch that fits in 16 GB VRAM at 1024x1024 crops (measured: 12.9 GB peak, 81%).
+    # Larger values do not OOM on Windows/WDDM -- they silently spill into shared system memory and
+    # collapse throughput (batch 6 -> 19.2 GB / 9.8 s/step; batch 12 -> 38.1 GB / ~70 s/step, i.e.
+    # 6.7 h/epoch vs 0.32 h/epoch at batch 4). Raise this on a larger-VRAM GPU, but re-measure rather
+    # than assuming, and see the LR note in TRAIN.OPTIMIZER if you change it.
+    batch_size: 4
     shuffle: True
     num_workers: 4
     pin_memory: True
