@@ -1,0 +1,15 @@
+digitized_dir: results/ahus_benchmark_40
+ground_truth_dir: data/ahus_benchmark/ground_truth
+results_csv: results/ahus_metrics_40_aligned.csv
+
+# Shift window can be narrower than the shift-only case: correcting the time *scale* removes the
+# drift that otherwise grows with column position, so what remains is a small origin offset.
+shift_steps: 400
+
+# Search the time-axis scale, not just the offset. Measured output is ~3.5% compressed relative to
+# ground truth (LeadIdentifier.normalize crops to the detected signal extent and stretches it to
+# target_num_samples), and no rigid shift can correct that -- see compute_metrics' docstring.
+# Omit these three keys entirely to get the original shift-only behavior.
+scale_min: 0.94
+scale_max: 1.02
+scale_step: 0.005
