@@ -1,0 +1,11 @@
+digitized_dir: results/chapman_bench
+ground_truth_dir: data/chapman_bench/ground_truth
+results_csv: results/chapman_metrics.csv
+
+# Offset allowance only; no scale search (scale_min/max omitted -> disabled).
+#
+# Chapman records are uniformly exactly 10 s, the generator renders that same window, and ground truth
+# is exported from the same record -- so sample indices correspond by construction and no fitted
+# time-axis correction is warranted. Keeping the search this narrow means the reported number stays
+# close to a raw comparison rather than an optimised one.
+shift_steps: 100

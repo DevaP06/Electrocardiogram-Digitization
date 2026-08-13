@@ -1,0 +1,13 @@
+digitized_dir: results/cpsc_bench
+ground_truth_dir: data/cpsc_bench/ground_truth
+results_csv: results/cpsc_metrics.csv
+
+# Small offset allowance, and deliberately no scale search (scale_min/max omitted -> disabled).
+#
+# Unlike the development-set benchmark, every stage here covers the same 10 s window by construction:
+# records are truncated to 10 s before rendering, the generator draws exactly that, and ground truth is
+# exported from the same truncated record. So sample indices genuinely correspond and no fitted
+# time-axis correction is needed -- a single-record check scored 92.9-99.4% with zero alignment, and the
+# best shifts found were 0-10 samples. Keeping the search this narrow means the reported number is close
+# to a raw comparison rather than an optimised one.
+shift_steps: 100

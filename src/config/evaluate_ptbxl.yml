@@ -1,0 +1,7 @@
+digitized_dir: results/ptbxl_bench
+ground_truth_dir: data/ptbxl_bench/ground_truth
+results_csv: results/ptbxl_metrics.csv
+
+# Offset allowance only; no scale search -- see evaluate_chapman.yml. PTB-XL records are uniformly 10 s
+# at 500 Hz, so the record, the rendered page and the exported ground truth all cover the same window.
+shift_steps: 100
