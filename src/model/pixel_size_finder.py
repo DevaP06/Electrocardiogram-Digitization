@@ -156,4 +156,10 @@ class PixelSizeFinder(torch.nn.Module):
                 best_grid_discretization_score = grid_discretization_score
                 best_pixels_between_grid_line = pixels_between_grid_line
 
-        return best_pixels_between_grid_line
+        # float(), not the raw loop variable: iterating a tensor yields 0-dim *tensors*, so returning one
+        # directly contradicts this function's `-> float` annotation and silently makes mm_per_pixel_x/y --
+        # and everything derived from them, notably avg_pixel_per_mm -- tensors too. Most arithmetic
+        # downstream tolerates that, which is why it went unnoticed, but Python's builtin round() has no
+        # __round__ on Tensor and raises "type Tensor doesn't define __round__ method", breaking
+        # CalibrationPulseDetector on every image.
+        return float(best_pixels_between_grid_line)
