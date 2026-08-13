@@ -6,10 +6,17 @@ src.dataset.ecg_scan.ECGScanDataset, under data/ecg_dataset/{train,val}/.
 
 import os
 
-# Route the HF cache to the D: drive (project drive) instead of the default
-# C:\Users\<user>\.cache\huggingface, since the dataset is large (~75GB download).
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-os.environ.setdefault("HF_HOME", os.path.join(REPO_ROOT, "hf_cache"))
+
+# Route the HF cache off the default C:\Users\<user>\.cache\huggingface (the dataset is ~75GB), and
+# deliberately keep it OUT of the repo directory: datasets builds intermediate arrow files at paths
+# like <HF_HOME>/datasets/Ahus-AIM___open-ecg-digitizer-development-dataset/default-<hash>/0.0.0/
+# <40-char-hash>.incomplete/open-ecg-digitizer-development-dataset-train-00000-00000-of-NNNNN.arrow.
+# That suffix alone is ~200 chars, so nesting it under a repo path blows past Windows' 260-char
+# MAX_PATH (unless LongPathsEnabled is set) and fails with a confusing FileNotFoundError mid-generation
+# -- after the whole multi-hour download has already succeeded. Override with HF_HOME if needed.
+DEFAULT_CACHE = "D:/hf_cache_ecg" if os.name == "nt" else os.path.join(REPO_ROOT, "hf_cache")
+os.environ.setdefault("HF_HOME", DEFAULT_CACHE)
 
 from datasets import load_dataset  # noqa: E402
 

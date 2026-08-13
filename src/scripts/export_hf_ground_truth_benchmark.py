@@ -9,8 +9,16 @@ second, independent one stored under the "_T0" suffixed fields (img_T0/dat_T0/he
 split can yield up to 434 benchmark examples.
 
 Output layout:
-    <images_out>/<id>.png                            -- feed this to `python -m src.digitize`
+    <images_out>/<id>/<id>.png                        -- feed this to `python -m src.digitize`
     <ground_truth_out>/<id>/digital_signal_<id>.csv   -- point `evaluate.yml`'s ground_truth_dir at this
+
+Note the per-<id> subdirectory on the images side: it is load-bearing, not cosmetic. src.digitize mirrors
+its input tree into its output tree, and src.evaluate then pairs the two by *directory* name, looking for
+<digitized_dir>/<id>/*_timeseries_canonical.csv against <ground_truth_out>/<id>/digital_signal_<id>.csv.
+Exporting images flat as <images_out>/<id>.png makes digitize write flat <digitized_dir>/<id>_timeseries_
+canonical.csv files, and evaluate's find_digitized_csv then fails its os.path.isdir check, returns nothing
+for every record, and writes an *empty* metrics CSV without raising -- a silent no-op that looks like a
+completed benchmark run.
 
 Usage:
     python -m src.scripts.export_hf_ground_truth_benchmark --max_examples 20   # quick first pass
@@ -23,8 +31,16 @@ import tempfile
 from typing import Any, Optional
 
 import numpy as np
-import wfdb
-from datasets import load_dataset
+
+# Must match download_hf_dataset.py's cache location, and must be set before `datasets` is imported.
+# Otherwise this falls back to ~/.cache/huggingface and re-downloads the parquet files that script
+# already fetched (tens of GB). See that script for why the Windows default lives outside the repo.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_DEFAULT_CACHE = "D:/hf_cache_ecg" if os.name == "nt" else os.path.join(_REPO_ROOT, "hf_cache")
+os.environ.setdefault("HF_HOME", _DEFAULT_CACHE)
+
+import wfdb  # noqa: E402
+from datasets import load_dataset  # noqa: E402
 
 from src.evaluate import resample_to_length
 
@@ -89,7 +105,11 @@ def export_example(
     target_num_samples: int,
     tmpdir: str,
 ) -> None:
-    img.convert("RGB").save(os.path.join(images_out, f"{example_id}.png"))
+    # One directory per example (see module docstring): src.evaluate pairs digitized output to ground
+    # truth by directory name, and src.digitize mirrors this input tree into its output tree.
+    image_dir = os.path.join(images_out, example_id)
+    os.makedirs(image_dir, exist_ok=True)
+    img.convert("RGB").save(os.path.join(image_dir, f"{example_id}.png"))
 
     record = _read_wfdb_record(dat_bytes, hea_text, tmpdir)
     signal_uv = _reorder_to_canonical(record.p_signal, record.sig_name, record.units)  # (n_samples, 12), uV
@@ -118,9 +138,19 @@ def main(
     os.makedirs(images_out, exist_ok=True)
     os.makedirs(ground_truth_out, exist_ok=True)
 
+    # Fetch only the split actually being exported. The dataset card declares both train and val, and
+    # datasets cross-checks what it produced against that declaration -- so requesting val alone aborts
+    # with ExpectedMoreSplitsError({'train'}) *after* doing all the generation work. verification_mode
+    # suppresses that check, which is what makes the narrow request viable.
+    #
+    # Requesting both splits instead would also work and would reuse download_hf_dataset.py's cache on a
+    # machine that already has it, but it makes a *fresh* machine pull the entire ~75GB dataset (and
+    # memory-map 204 train shards on every run) to read a ~3.7GB val split it never touches. Keeping
+    # this narrow is what makes the benchmark cheap to reproduce elsewhere, e.g. on a shared GPU box.
     dataset = load_dataset(
         "Ahus-AIM/Open-ECG-Digitizer-Development-Dataset",
         data_files={split: f"data/{split}-*.parquet"},
+        verification_mode="no_checks",
     )[split]
 
     n = len(dataset) if max_examples is None else min(max_examples, len(dataset))
