@@ -14,9 +14,18 @@ from src.config.default import get_cfg
 from src.utils import find_config_path
 
 
-def crop_ahus_raw_timeseries(gt: npt.NDArray[Any]) -> npt.NDArray[Any]:
-    if gt.shape[0] > 5000:
-        return gt[:5000]
+def crop_ahus_raw_timeseries(gt: npt.NDArray[Any], target_length: int = 5000) -> npt.NDArray[Any]:
+    """Truncates ground truth that runs longer than the digitized output it will be compared against.
+
+    target_length defaults to 5000 for backwards compatibility, but callers should pass the prediction's
+    own length: the digitized sample count is set by LAYOUT_IDENTIFIER.target_num_samples, which is 5000
+    for the AHUS configs this originally assumed but 10000 for
+    src/config/inference_wrapper_george-moody-2024.yml. Hardcoding 5000 silently cropped ground truth to
+    half the prediction's length there, which surfaced as a broadcast error rather than a wrong score --
+    the lucky case; the same mismatch in the other direction would have scored silently.
+    """
+    if gt.shape[0] > target_length:
+        return gt[:target_length]
     return gt
 
 
@@ -129,7 +138,7 @@ def compute_metrics(
     Returns:
         Per-lead lists of pearson, rms, snr_db, shift, scale and nans_fraction.
     """
-    gt = crop_ahus_raw_timeseries(gt)
+    gt = crop_ahus_raw_timeseries(gt, pred.shape[0])
     gt, pred = gt.T, pred.T  # (leads, samples) in units of mV
     scale_grid = scales if scales else [1.0]
 
