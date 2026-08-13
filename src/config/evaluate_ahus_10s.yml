@@ -1,0 +1,9 @@
+digitized_dir: results/ahus_benchmark_full
+ground_truth_dir: data/ahus_benchmark_10s/ground_truth
+results_csv: results/ahus_metrics_10s.csv
+
+# Small offset allowance only -- no scale search. With ground truth cropped to the 10 s the image
+# actually depicts, the time bases already agree, so what remains is a sub-second origin offset from
+# where the segmenter picks up the start of the trace. If this reproduces the aligned numbers, the
+# accuracy claim needs no fitted time-axis correction at all.
+shift_steps: 100

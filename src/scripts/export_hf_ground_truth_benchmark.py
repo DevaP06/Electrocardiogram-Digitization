@@ -42,7 +42,7 @@ os.environ.setdefault("HF_HOME", _DEFAULT_CACHE)
 import wfdb  # noqa: E402
 from datasets import load_dataset  # noqa: E402
 
-from src.evaluate import resample_to_length
+from src.evaluate import resample_to_length  # noqa: E402
 
 CANONICAL_LEAD_ORDER = ["I", "II", "III", "aVR", "aVL", "aVF", "V1", "V2", "V3", "V4", "V5", "V6"]
 
@@ -70,7 +70,7 @@ def _wfdb_record_name_from_header(hea_text: str) -> str:
     return first_line.split()[0]
 
 
-def _reorder_to_canonical(signal: np.ndarray, sig_name: list, units: list) -> np.ndarray:
+def _reorder_to_canonical(signal: np.ndarray, sig_name: list[str], units: list[str]) -> np.ndarray:
     """(n_samples, n_channels) WFDB signal, in whatever lead order/units the record has, -> (n_samples, 12)
     in CANONICAL_LEAD_ORDER (matching LeadIdentifier.LEAD_CHANNEL_ORDER / digitize.py's output column order
     -- evaluate.py's load_signal_csv matches gt/pred purely by column position, not by header name, so this
@@ -104,6 +104,7 @@ def export_example(
     ground_truth_out: str,
     target_num_samples: int,
     tmpdir: str,
+    depicted_seconds: Optional[float] = None,
 ) -> None:
     # One directory per example (see module docstring): src.evaluate pairs digitized output to ground
     # truth by directory name, and src.digitize mirrors this input tree into its output tree.
@@ -113,6 +114,17 @@ def export_example(
 
     record = _read_wfdb_record(dat_bytes, hea_text, tmpdir)
     signal_uv = _reorder_to_canonical(record.p_signal, record.sig_name, record.units)  # (n_samples, 12), uV
+
+    # Crop to the window the image actually depicts before resampling. The records here run 10.24 s
+    # (4096 samples @ 400 Hz) but the rendered page shows the ECG standard 10 s, so exporting the whole
+    # record makes ground truth cover ~2.4% more time than the picture does. Both then get stretched to
+    # target_num_samples, and every sample index silently disagrees -- progressively, so it reads as a
+    # growing time lag rather than an obvious offset. Cropping with each record's own fs (rather than a
+    # global fraction) keeps this correct if record length or sample rate ever varies.
+    if depicted_seconds is not None:
+        n_depicted = int(round(record.fs * depicted_seconds))
+        if 0 < n_depicted < signal_uv.shape[0]:
+            signal_uv = signal_uv[:n_depicted]
 
     resampled = resample_to_length(signal_uv.T, target_num_samples).T  # resample_to_length wants (leads, samples)
 
@@ -134,6 +146,7 @@ def main(
     max_examples: Optional[int],
     split: str,
     include_t0: bool,
+    depicted_seconds: Optional[float] = None,
 ) -> None:
     os.makedirs(images_out, exist_ok=True)
     os.makedirs(ground_truth_out, exist_ok=True)
@@ -179,6 +192,7 @@ def main(
                         ground_truth_out,
                         target_num_samples,
                         tmpdir,
+                        depicted_seconds,
                     )
                 except Exception as e:
                     print(f"[{i + 1}/{n}] {example_id}: FAILED ({e})")
@@ -206,6 +220,15 @@ if __name__ == "__main__":
         help="Must match the target_num_samples the LAYOUT_IDENTIFIER config uses when you run src.digitize "
         "on these images (LeadIdentifier's default is 5000 -- see src/config/inference_wrapper_ahus_testset.yml).",
     )
+    parser.add_argument(
+        "--depicted_seconds",
+        type=float,
+        default=10.0,
+        help="Seconds of the record the rendered image actually shows; ground truth is cropped to this "
+        "before resampling. Defaults to the 10 s ECG printing standard, which is what these images use "
+        "even though the underlying records run 10.24 s. Pass 0 to disable cropping and export the whole "
+        "record (what earlier revisions did -- it makes ground truth and image cover different windows).",
+    )
     parser.add_argument("--max_examples", type=int, default=None, help="Limit rows processed -- do a small run first.")
     parser.add_argument("--no_t0", action="store_true", help="Skip the _T0 variant, export only the base pair per row.")
     args = parser.parse_args()
@@ -217,4 +240,5 @@ if __name__ == "__main__":
         max_examples=args.max_examples,
         split=args.split,
         include_t0=not args.no_t0,
+        depicted_seconds=args.depicted_seconds if args.depicted_seconds > 0 else None,
     )
